@@ -11,65 +11,65 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fhilgers/gocryptomator/internal/constants"
 	"github.com/fhilgers/gocryptomator/internal/stream"
 )
 
-const cs = stream.ChunkSize
+const cs = constants.ChunkPayloadSize
 
 type encryptedFile struct {
-    ContentKey []byte
-    Nonce []byte
-    MacKey []byte
-    Ciphertext []byte
+	ContentKey []byte
+	Nonce      []byte
+	MacKey     []byte
+	Ciphertext []byte
 }
 
 func TestDecryptReference(t *testing.T) {
+	paths, err := filepath.Glob(filepath.Join("testdata", "*.input"))
+	if err != nil {
+		t.Fatal(err)
+	}
 
-    paths, err := filepath.Glob(filepath.Join("testdata", "*.input"))
-    if err != nil {
-        t.Fatal(err)
-    }
+	for _, path := range paths {
+		filename := filepath.Base(path)
+		testname := strings.TrimSuffix(filename, filepath.Ext(filename))
 
-    for _, path := range paths {
-        filename := filepath.Base(path)
-        testname := strings.TrimSuffix(filename, filepath.Ext(filename))
+		input, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-        input, err := os.ReadFile(path)
-        if err != nil {
-            t.Fatal(err)
-        }
+		golden, err := os.ReadFile(filepath.Join("testdata", testname+".golden"))
+		if err != nil {
+			t.Fatal(err)
+		}
 
-        golden, err := os.ReadFile(filepath.Join("testdata", testname + ".golden"))
-        if err != nil {
-            t.Fatal(err)
-        }
+		var encFiles map[string]encryptedFile
+		json.Unmarshal(input, &encFiles)
 
-        var encFiles map[string]encryptedFile
-        json.Unmarshal(input, &encFiles)
+		var plainTexts map[string][]byte
+		json.Unmarshal(golden, &plainTexts)
 
-        var plainTexts map[string][]byte
-        json.Unmarshal(golden, &plainTexts)
+		for name, encFile := range encFiles {
+			t.Run(fmt.Sprintf("%s:%s", testname, name), func(t *testing.T) {
+				buf := bytes.NewBuffer(encFile.Ciphertext)
 
-        for name, encFile := range encFiles {
-            t.Run(fmt.Sprintf("%s:%s", testname, name), func(t *testing.T) {
-                buf := bytes.NewBuffer(encFile.Ciphertext)
+				r, err := stream.NewReader(buf, encFile.ContentKey, encFile.Nonce, encFile.MacKey)
+				if err != nil {
+					t.Fatal(err)
+				}
 
-                r, err := stream.NewReader(buf, encFile.ContentKey, encFile.Nonce, encFile.MacKey)
-                if err != nil {
-                    t.Fatal(err)
-                }
+				output, err := io.ReadAll(r)
+				if err != nil {
+					t.Fatal(err)
+				}
 
-                output, err := io.ReadAll(r)
-                if err != nil {
-                    t.Fatal(err)
-                }
-
-                if !bytes.Equal(output, plainTexts[name]) {
-                    t.Errorf("\n==== got:\n%s\n==== want:\n%s\n", output, plainTexts[name])
-                }
-            })
-        }
-    }
+				if !bytes.Equal(output, plainTexts[name]) {
+					t.Errorf("\n==== got:\n%s\n==== want:\n%s\n", output, plainTexts[name])
+				}
+			})
+		}
+	}
 }
 
 func TestRoundTrip(t *testing.T) {
@@ -87,18 +87,18 @@ func testRoundTrip(t *testing.T, stepSize, length int) {
 		t.Fatal(err)
 	}
 	buf := &bytes.Buffer{}
-	contentKey := make([]byte, stream.ContentKeySize)
+	contentKey := make([]byte, constants.HeaderContentKeySize)
 	if _, err := rand.Read(contentKey); err != nil {
 		t.Fatal(err)
 	}
-    macKey := make([]byte, stream.MacKeySize)
-    if _, err := rand.Read(macKey); err != nil {
-        t.Fatal(err)
-    }
-    nonce := make([]byte, stream.NonceSize)
-    if _, err := rand.Read(nonce); err != nil {
-        t.Fatal(err)
-    }
+	macKey := make([]byte, constants.MasterMacKeySize)
+	if _, err := rand.Read(macKey); err != nil {
+		t.Fatal(err)
+	}
+	nonce := make([]byte, constants.HeaderNonceSize)
+	if _, err := rand.Read(nonce); err != nil {
+		t.Fatal(err)
+	}
 
 	w, err := stream.NewWriter(buf, contentKey, nonce, macKey)
 	if err != nil {

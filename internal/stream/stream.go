@@ -11,18 +11,11 @@ import (
 	"hash"
 	"io"
 	"crypto/rand"
+
+	"github.com/fhilgers/gocryptomator/internal/constants"
 )
 
 const (
-    ContentKeySize = 32
-    MacKeySize = 32
-
-	NonceSize = 16
-	MacSize   = 32
-	ChunkSize = 32 * 1024
-
-	encChunkSize = ChunkSize + NonceSize + MacSize
-
 	lastChunk    = true
 	notLastChunk = false
 )
@@ -35,7 +28,7 @@ type Reader struct {
 	src io.Reader
 
 	unread []byte
-	buf    [encChunkSize]byte
+	buf    [constants.ChunkEncryptedSize]byte
 
 	chunkNr uint64
 
@@ -111,9 +104,9 @@ func (r *Reader) readChunk() (last bool, err error) {
 		return false, err
 	}
 
-	chunkNonce := in[:NonceSize]
-	payload := in[NonceSize : len(in)-MacSize]
-	tag := in[len(in)-MacSize:]
+	chunkNonce := in[:constants.ChunkNonceSize]
+	payload := in[constants.ChunkNonceSize : len(in)-constants.ChunkMacSize]
+	tag := in[len(in)-constants.ChunkMacSize:]
 
 	r.mac.Reset()
 	r.mac.Write(r.nonce)
@@ -142,7 +135,7 @@ type Writer struct {
 
 	dst       io.Writer
 	unwritten []byte
-	buf       [encChunkSize]byte
+	buf       [constants.ChunkEncryptedSize]byte
 
 	err error
 
@@ -177,12 +170,12 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 
 	total := len(p)
 	for len(p) > 0 {
-		freeBuf := w.buf[len(w.unwritten):ChunkSize]
+		freeBuf := w.buf[len(w.unwritten):constants.ChunkPayloadSize]
 		n := copy(freeBuf, p)
 		p = p[n:]
 		w.unwritten = w.unwritten[:len(w.unwritten)+n]
 
-		if len(w.unwritten) == ChunkSize && len(p) > 0 {
+		if len(w.unwritten) == constants.ChunkPayloadSize && len(p) > 0 {
 			if err := w.flushChunk(notLastChunk); err != nil {
 				w.err = err
 				return 0, err
@@ -208,11 +201,11 @@ func (w *Writer) Close() error {
 }
 
 func (w *Writer) flushChunk(last bool) error {
-	if !last && len(w.unwritten) != ChunkSize {
+	if !last && len(w.unwritten) != constants.ChunkPayloadSize {
 		panic("stream: internal error: flush called with partial chunk")
 	}
 
-	chunkNonce := make([]byte, NonceSize)
+	chunkNonce := make([]byte, constants.ChunkNonceSize)
 	_, err := rand.Read(chunkNonce)
 	if err != nil {
 		panic(err)
