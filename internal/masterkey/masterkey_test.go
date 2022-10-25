@@ -2,7 +2,6 @@ package masterkey_test
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,51 +11,39 @@ import (
 
 	"github.com/fhilgers/gocryptomator/internal/constants"
 	"github.com/fhilgers/gocryptomator/internal/masterkey"
-	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"pgregory.net/rapid"
 )
 
 func TestNew(t *testing.T) {
 	k, err := masterkey.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err, "got an error while creating the master key")
 
-	if len(k.EncryptKey) != constants.MasterEncryptKeySize {
-		t.Fatalf("invalid encryption key size: wanted %d, got %d", constants.MasterEncryptKeySize, len(k.EncryptKey))
-	}
-
-	if len(k.MacKey) != constants.MasterMacKeySize {
-		t.Fatalf("invalid mac key size: wanted %d, got %d", constants.MasterMacKeySize, len(k.MacKey))
-	}
+	assert.Len(t, k.EncryptKey, constants.MasterEncryptKeySize, "invalid encryption key size")
+	assert.Len(t, k.MacKey, constants.MasterMacKeySize, "invalid mac key size")
 }
 
 func TestRoundTrip(t *testing.T) {
-	passphrase := make([]byte, 16)
+	rapid.Check(t, func(t *rapid.T) {
+		passphrase := rapid.String().Draw(t, "passphrase")
 
-	if _, err := rand.Read(passphrase); err != nil {
-		t.Fatal(err)
-	}
+		k1, err := masterkey.New()
+		assert.NoError(t, err, "got an error while creating the master key")
 
-	k1, err := masterkey.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+		buf := &bytes.Buffer{}
 
-	buf := &bytes.Buffer{}
+		err = k1.Marshal(buf, passphrase)
+		assert.NoError(t, err, "got an error while marshalling")
 
-	err = k1.Marshal(buf, string(passphrase))
-	if err != nil {
-		t.Fatal(err)
-	}
+		assert.NotEmpty(t, buf.Bytes(), "buffer is empty after marshalling")
 
-	k2, err := masterkey.Unmarshal(buf, string(passphrase))
-	if err != nil {
-		t.Fatal(err)
-	}
+		k2, err := masterkey.Unmarshal(buf, passphrase)
+		assert.NoError(t, err, "got an error while unmarshalling")
 
-	if !cmp.Equal(k1, k2) {
-		t.Fatal(cmp.Diff(k1, k2))
-	}
+		assert.Empty(t, buf.Bytes(), "buffer is not empty after unmarshalling")
+
+		assert.Equal(t, k1, k2)
+	})
 }
 
 type encKey struct {
@@ -66,48 +53,36 @@ type encKey struct {
 
 func TestUnmarshalReference(t *testing.T) {
 	paths, err := filepath.Glob(filepath.Join("testdata", "*.input"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	for _, path := range paths {
 		filename := filepath.Base(path)
 		testname := strings.TrimSuffix(filename, filepath.Ext(filename))
 
 		input, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(t, err)
 
 		golden, err := os.ReadFile(filepath.Join("testdata", testname+".golden"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(t, err)
 
 		var encKeys map[string]encKey
 		err = json.Unmarshal(input, &encKeys)
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(t, err)
 
 		var keys map[string]masterkey.MasterKey
 		err = json.Unmarshal(golden, &keys)
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(t, err)
 
 		for name, encKey := range encKeys {
 			t.Run(fmt.Sprintf("%s:%s", testname, name), func(t *testing.T) {
 				buf := bytes.NewBuffer(encKey.EncryptedMasterKey)
 
 				h, err := masterkey.Unmarshal(buf, encKey.Passphrase)
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 
-				if !cmp.Equal(h, keys[name]) {
-					t.Fatalf("keys differ:\n %s", cmp.Diff(h, keys[name]))
-				}
+				assert.Empty(t, buf.Bytes())
+
+				assert.Equal(t, keys[name], h)
 			})
 		}
 	}

@@ -2,7 +2,6 @@ package stream_test
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +12,9 @@ import (
 
 	"github.com/fhilgers/gocryptomator/internal/constants"
 	"github.com/fhilgers/gocryptomator/internal/stream"
+	"github.com/fhilgers/gocryptomator/internal/testutils"
+	"github.com/stretchr/testify/assert"
+	"pgregory.net/rapid"
 )
 
 const cs = constants.ChunkPayloadSize
@@ -26,23 +28,17 @@ type encryptedFile struct {
 
 func TestDecryptReference(t *testing.T) {
 	paths, err := filepath.Glob(filepath.Join("testdata", "*.input"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	for _, path := range paths {
 		filename := filepath.Base(path)
 		testname := strings.TrimSuffix(filename, filepath.Ext(filename))
 
 		input, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(t, err)
 
 		golden, err := os.ReadFile(filepath.Join("testdata", testname+".golden"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(t, err)
 
 		var encFiles map[string]encryptedFile
 		json.Unmarshal(input, &encFiles)
@@ -55,103 +51,72 @@ func TestDecryptReference(t *testing.T) {
 				buf := bytes.NewBuffer(encFile.Ciphertext)
 
 				r, err := stream.NewReader(buf, encFile.ContentKey, encFile.Nonce, encFile.MacKey)
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 
 				output, err := io.ReadAll(r)
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 
-				if !bytes.Equal(output, plainTexts[name]) {
-					t.Errorf("\n==== got:\n%s\n==== want:\n%s\n", output, plainTexts[name])
-				}
+				assert.Equal(t, plainTexts[name], output)
 			})
 		}
 	}
 }
 
+
+
 func TestRoundTrip(t *testing.T) {
-	for _, stepSize := range []int{512, 600, 1000, cs} {
-		for _, length := range []int{0, 1000, cs, cs + 100} {
-			t.Run(fmt.Sprintf("len=%d,step=%d", length, stepSize),
-				func(t *testing.T) { testRoundTrip(t, stepSize, length) })
+	rapid.Check(t, func(t *rapid.T) {
+		stepSize := rapid.SampledFrom([]int{512, 600, 1000, cs}).Draw(t, "stepSize")
+		// Maxlength due to memory problems when using math.MaxInt
+		maxLength := 1000000
+		length := rapid.IntRange(0, maxLength).Draw(t, "length")
+
+		src := testutils.FixedSizeByteArray(length).Draw(t, "src")
+		contentKey := testutils.FixedSizeByteArray(constants.HeaderContentKeySize).Draw(t, "contentKey")
+		macKey := testutils.FixedSizeByteArray(constants.MasterMacKeySize).Draw(t, "macKey")
+		nonce := testutils.FixedSizeByteArray(constants.HeaderNonceSize).Draw(t, "nonce")
+
+		buf := &bytes.Buffer{}
+
+		w, err := stream.NewWriter(buf, contentKey, nonce, macKey)
+		assert.NoError(t, err)
+
+		n := 0
+		for n < length {
+			b := length - n
+			if b > stepSize {
+				b = stepSize
+			}
+
+			nn, err := w.Write(src[n : n+b])
+			assert.NoError(t, err)
+			assert.Equal(t, b, nn, "wrong number of bytes written")
+
+			n += nn
+
+			nn, err = w.Write(src[n:n])
+			assert.NoError(t, err)
+			assert.Zero(t, nn, "more than 0 bytes written")
 		}
-	}
+
+		err = w.Close()
+		assert.NoError(t, err, "close returned an error")
+
+		t.Logf("buffer size: %d", buf.Len())
+
+		r, err := stream.NewReader(buf, contentKey, nonce, macKey)
+		assert.NoError(t, err)
+
+		n = 0
+		readBuf := make([]byte, stepSize)
+		for n < length {
+			nn, err := r.Read(readBuf)
+			assert.NoErrorf(t, err, "read error at index %d", n)
+
+			assert.Equalf(t, readBuf[:nn], src[n:n+nn], "wrong data at indexes %d - %d", n, n+nn)
+
+			n += nn
+		}
+	})
 }
 
-func testRoundTrip(t *testing.T, stepSize, length int) {
-	src := make([]byte, length)
-	if _, err := rand.Read(src); err != nil {
-		t.Fatal(err)
-	}
-	buf := &bytes.Buffer{}
-	contentKey := make([]byte, constants.HeaderContentKeySize)
-	if _, err := rand.Read(contentKey); err != nil {
-		t.Fatal(err)
-	}
-	macKey := make([]byte, constants.MasterMacKeySize)
-	if _, err := rand.Read(macKey); err != nil {
-		t.Fatal(err)
-	}
-	nonce := make([]byte, constants.HeaderNonceSize)
-	if _, err := rand.Read(nonce); err != nil {
-		t.Fatal(err)
-	}
-
-	w, err := stream.NewWriter(buf, contentKey, nonce, macKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var n int
-	for n < length {
-		b := length - n
-		if b > stepSize {
-			b = stepSize
-		}
-		nn, err := w.Write(src[n : n+b])
-		if err != nil {
-			t.Fatal(err)
-		}
-		if nn != b {
-			t.Errorf("Write returned %d, expected %d", nn, b)
-		}
-		n += nn
-
-		nn, err = w.Write(src[n:n])
-		if err != nil {
-			t.Fatal(err)
-		}
-		if nn != 0 {
-			t.Errorf("Write returned %d, expected 0", nn)
-		}
-	}
-
-	if err := w.Close(); err != nil {
-		t.Error("Close returned an error:", err)
-	}
-
-	t.Logf("buffer size: %d", buf.Len())
-
-	r, err := stream.NewReader(buf, contentKey, nonce, macKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	n = 0
-	readBuf := make([]byte, stepSize)
-	for n < length {
-		nn, err := r.Read(readBuf)
-		if err != nil {
-			t.Fatalf("Read error at index %d: %v", n, err)
-		}
-
-		if !bytes.Equal(readBuf[:nn], src[n:n+nn]) {
-			t.Errorf("wrong data at indexes %d - %d", n, n+nn)
-		}
-
-		n += nn
-	}
-}

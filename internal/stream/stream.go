@@ -4,13 +4,13 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"hash"
 	"io"
-	"crypto/rand"
 
 	"github.com/fhilgers/gocryptomator/internal/constants"
 )
