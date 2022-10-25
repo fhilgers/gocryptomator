@@ -62,8 +62,6 @@ func TestDecryptReference(t *testing.T) {
 	}
 }
 
-
-
 func TestRoundTrip(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		stepSize := rapid.SampledFrom([]int{512, 600, 1000, cs}).Draw(t, "stepSize")
@@ -119,4 +117,3 @@ func TestRoundTrip(t *testing.T) {
 		}
 	})
 }
-
