@@ -1,8 +1,12 @@
 package constants
 
 const (
-	MasterEncryptKeySize = 32
-	MasterMacKeySize     = 32
+	MasterEncryptKeySize  = 32
+	MasterMacKeySize      = MasterEncryptKeySize
+	MasterVersion         = 999
+	MasterScryptCostParam = 32 * 1024
+	MasterScryptBlockSize = 8
+	MasterScryptSaltSize  = 32
 
 	HeaderNonceSize      = 16
 	HeaderContentKeySize = 32
