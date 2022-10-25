@@ -17,12 +17,12 @@ func TestEncryptDecrypt(t *testing.T) {
 		encKey := testutils.FixedSizeByteArray(constants.MasterEncryptKeySize).Draw(t, "encKey")
 		macKey := testutils.FixedSizeByteArray(constants.MasterMacKeySize).Draw(t, "macKey")
 
-		encypted_name, err := Encrypt(name, dirID, encKey, macKey)
+		encName, err := Encrypt(name, dirID, encKey, macKey)
 		assert.NoError(t, err, "encryption error")
 
-		decrypted_name, err := Decrypt(encypted_name, dirID, encKey, macKey)
+		decName, err := Decrypt(encName, dirID, encKey, macKey)
 		assert.NoError(t, err, "decryption error")
 
-		assert.Equal(t, name, decrypted_name)
+		assert.Equal(t, name, decName)
 	})
 }

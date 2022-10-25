@@ -21,4 +21,11 @@ const (
 	ChunkEncryptedSize = ChunkNonceSize + ChunkPayloadSize + ChunkMacSize
 
 	HeaderReservedValue uint64 = 0xFFFFFFFFFFFFFFFF
+
+	RegularSuffix         = ".c9r"
+	ShortenedSuffix       = ".c9s"
+	ShortenedMetadataFile = "name.c9s"
+	ContentsFile          = "contents.c9r"
+	DirFile               = "dir.c9r"
+	SymlinkFile           = "symlink.c9r"
 )
