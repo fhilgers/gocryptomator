@@ -28,4 +28,13 @@ const (
 	ContentsFile          = "contents.c9r"
 	DirFile               = "dir.c9r"
 	SymlinkFile           = "symlink.c9r"
+
+	ConfigKeyIDTag            = "kid"
+	ConfigCipherCombo         = "SIV_CTRMAC"
+	ConfigVaultFormat         = 8
+	ConfigShorteningThreshold = 220
+	ConfigKeyIDScheme         = "masterkeyfile"
+	ConfigMasterkeyFileName   = "masterkey.cryptomator"
+	ConfigKeyID               = ConfigKeyIDScheme + ":" + ConfigMasterkeyFileName
+	ConfigFileName            = "vault.cryptomator"
 )
