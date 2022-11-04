@@ -3,11 +3,6 @@ package header_test
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/fhilgers/gocryptomator/internal/constants"
@@ -55,36 +50,12 @@ type encHeader struct {
 }
 
 func TestUnmarshalReference(t *testing.T) {
-	paths, err := filepath.Glob(filepath.Join("testdata", "*.input"))
-	assert.NoError(t, err)
+	testutils.WithTestdata(t, func(t *testing.T, input encHeader, golden header.FileHeader) {
+		buf := bytes.NewBuffer(input.Header)
 
-	for _, path := range paths {
-		filename := filepath.Base(path)
-		testname := strings.TrimSuffix(filename, filepath.Ext(filename))
-
-		input, err := os.ReadFile(path)
+		h, err := header.Unmarshal(buf, input.EncKey, input.MacKey)
 		assert.NoError(t, err)
 
-		golden, err := os.ReadFile(filepath.Join("testdata", testname+".golden"))
-		assert.NoError(t, err)
-
-		var encHeaders map[string]encHeader
-		err = json.Unmarshal(input, &encHeaders)
-		assert.NoError(t, err)
-
-		var headers map[string]header.FileHeader
-		err = json.Unmarshal(golden, &headers)
-		assert.NoError(t, err)
-
-		for name, encHeader := range encHeaders {
-			t.Run(fmt.Sprintf("%s:%s", testname, name), func(t *testing.T) {
-				buf := bytes.NewBuffer(encHeader.Header)
-
-				h, err := header.Unmarshal(buf, encHeader.EncKey, encHeader.MacKey)
-				assert.NoError(t, err)
-
-				assert.Equal(t, headers[name], h)
-			})
-		}
-	}
+		assert.Equal(t, golden, h)
+	})
 }

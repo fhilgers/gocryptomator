@@ -2,12 +2,7 @@ package stream_test
 
 import (
 	"bytes"
-	"encoding/json"
-	"fmt"
 	"io"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/fhilgers/gocryptomator/internal/constants"
@@ -27,39 +22,17 @@ type encryptedFile struct {
 }
 
 func TestDecryptReference(t *testing.T) {
-	paths, err := filepath.Glob(filepath.Join("testdata", "*.input"))
-	assert.NoError(t, err)
+	testutils.WithTestdata(t, func(t *testing.T, input encryptedFile, golden []byte) {
+		buf := bytes.NewBuffer(input.Ciphertext)
 
-	for _, path := range paths {
-		filename := filepath.Base(path)
-		testname := strings.TrimSuffix(filename, filepath.Ext(filename))
-
-		input, err := os.ReadFile(path)
+		r, err := stream.NewReader(buf, input.ContentKey, input.Nonce, input.MacKey)
 		assert.NoError(t, err)
 
-		golden, err := os.ReadFile(filepath.Join("testdata", testname+".golden"))
+		output, err := io.ReadAll(r)
 		assert.NoError(t, err)
 
-		var encFiles map[string]encryptedFile
-		json.Unmarshal(input, &encFiles)
-
-		var plainTexts map[string][]byte
-		json.Unmarshal(golden, &plainTexts)
-
-		for name, encFile := range encFiles {
-			t.Run(fmt.Sprintf("%s:%s", testname, name), func(t *testing.T) {
-				buf := bytes.NewBuffer(encFile.Ciphertext)
-
-				r, err := stream.NewReader(buf, encFile.ContentKey, encFile.Nonce, encFile.MacKey)
-				assert.NoError(t, err)
-
-				output, err := io.ReadAll(r)
-				assert.NoError(t, err)
-
-				assert.Equal(t, plainTexts[name], output)
-			})
-		}
-	}
+		assert.Equal(t, golden, output)
+	})
 }
 
 func TestRoundTrip(t *testing.T) {
