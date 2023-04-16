@@ -27,7 +27,7 @@ func FromDirID(dirID string, encKey, macKey []byte) (string, error) {
     return filepath.Join(encIDString[:2], encIDString[2:]), nil
 }
 
-func ResolveDir(fs fs.Fs, basePath, dir, parentID string, encKey, macKey []byte) (dirID string, err error) {
+func ResolveDir(fs fs.Fs, basePath, dir, parentID string, encKey, macKey []byte) (dirID string, dirIDPath string, err error) {
     
     parentPath, err := FromDirID(parentID, encKey, macKey)
     if err != nil {
@@ -35,7 +35,7 @@ func ResolveDir(fs fs.Fs, basePath, dir, parentID string, encKey, macKey []byte)
     }
 
     if (dir == ".") {
-        return parentID, nil
+        return parentID, "", nil
     }
 
     encDirName, err := filename.Encrypt(dir, parentID, encKey, macKey)
@@ -53,7 +53,7 @@ func ResolveDir(fs fs.Fs, basePath, dir, parentID string, encKey, macKey []byte)
         return
     }
 
-    return string(dirIDBytes), nil
+    return string(dirIDBytes), filepath.Join(basePath, parentPath, encDirName), nil
 }
 
 /*
@@ -107,48 +107,181 @@ func ResolveFile(fs fs.Fs, basePath, file, parentID string, encKey, macKey []byt
 }
 
 
-func ResolveFilePath(fs fs.Fs, basePath, path, parentID string, encKey, macKey []byte) (resolvedPath, dirID string, err error) {
+func ResolveFilePath(fs fs.Fs, basePath, path, parentID string, encKey, macKey []byte) (File, error) {
 
     relPath := strings.TrimPrefix(path, afero.FilePathSeparator)
     cleanPath := filepath.Clean(relPath)
 
     segments := strings.Split(cleanPath, afero.FilePathSeparator)
 
-    _, dirID, err = ResolveDirPath(fs, basePath, filepath.Join(segments[:len(segments) - 1]...), parentID, encKey, macKey)
+    directory, err := ResolveDirPath(fs, basePath, filepath.Join(segments[:len(segments) - 1]...), parentID, encKey, macKey)
     if err != nil {
-        return
+        return nil, err
     }
 
-    resolvedPath, err = ResolveFile(fs, basePath, segments[len(segments) - 1], dirID, encKey, macKey)
-    return
+    resolvedPath, err := ResolveFile(fs, basePath, segments[len(segments) - 1], directory.DirID(), encKey, macKey)
+    resolvedName, err := filename.Encrypt(segments[len(segments) - 1], directory.DirID(), encKey, macKey)
+
+    return file{ name: resolvedName, path: resolvedPath, parentID: directory.DirID() }, err
 }
 
-func ResolveDirPath(fs fs.Fs, basePath, path, parentID string, encKey, macKey []byte) (resolvedPath, dirID string, err error) {
+func ResolveDirPath(fs fs.Fs, basePath, path, parentID string, encKey, macKey []byte) (directory Directory, err error) {
+  relPath := strings.TrimPrefix(path, afero.FilePathSeparator)
+  cleanPath := filepath.Clean(relPath)
 
-    relPath := strings.TrimPrefix(path, afero.FilePathSeparator)
-    cleanPath := filepath.Clean(relPath)
+  segments := strings.Split(cleanPath, afero.FilePathSeparator)
 
-    segments := strings.Split(cleanPath, afero.FilePathSeparator)
-
-    dirID = parentID
-    for i, segment := range(segments) {
-
-        if i == len(segments) - 1 {
-            break
-        }
-
-        dirID, err = ResolveDir(fs, basePath, segment, dirID, encKey, macKey)
-        if err != nil  {
-            return
-        }
+  var dirID string
+  for i, segment := range(segments) {
+    if i == len(segments) - 1 {
+      break
     }
 
-    id, err := ResolveDir(fs, basePath, segments[len(segments) - 1], dirID, encKey, macKey)
+    dirID, _, err = ResolveDir(fs, basePath, segment, parentID, encKey, macKey)
     if err != nil {
-        return
+      return
     }
 
-    resolvedPath, err = FromDirID(id, encKey, macKey)
+    parentID = dirID
+  }
 
-    return resolvedPath, id, err
+  dirID, dirIDPath, err := ResolveDir(fs, basePath, segments[len(segments) - 1], dirID, encKey, macKey)
+  if err != nil {
+    return
+  }
+
+  resolvedPath, err := FromDirID(dirID, encKey, macKey)
+  if err != nil {
+    return
+  }
+  resolvedName, err := filename.Encrypt(segments[len(segments) - 1], parentID, encKey, macKey)
+  if err != nil {
+    return
+  }
+
+  return dir{ dirID: dirID, parentID: parentID, path: filepath.Join(basePath, resolvedPath), name: resolvedName, dirIDPath: dirIDPath }, nil
+}
+
+type Entry interface {
+  Path() string
+  Name() string
+  ParentID() string
+}
+
+type File interface {
+  Entry
+}
+
+type Directory interface {
+  Entry
+  DirID() string
+  DirIDPath() string
+}
+
+type dir struct {
+  name string
+  path string
+  dirIDPath string
+  parentID string
+  dirID string
+}
+type file struct {
+  name string
+  path string
+  parentID string
+}
+
+func (f file) Path() string {
+  return f.path
+}
+
+func (f file) Name() string {
+  return f.name
+}
+
+func (f file) ParentID() string {
+  return f.parentID
+}
+
+func (d dir) Path() string {
+  return d.path
+}
+
+func (d dir) Name() string {
+  return d.name
+}
+
+func (d dir) ParentID() string {
+  return d.parentID
+}
+
+func (d dir) DirID() string {
+  return d.dirID
+}
+
+func (d dir) DirIDPath() string {
+  return d.dirIDPath
+}
+
+
+type Entries []Entry
+
+func Resolve(fs fs.Fs, basePath, path, parentID string, encKey, macKey []byte) (entries Entries, err error) {
+  relPath := strings.TrimPrefix(path, afero.FilePathSeparator)
+  cleanPath := filepath.Clean(relPath)
+
+  segments := strings.Split(cleanPath, afero.FilePathSeparator)
+
+  var dirID string
+  var resolvedPath string
+  var resolvedName string
+  var dirIDPath string
+  for i, segment := range(segments) {
+    if i == len(segments) - 1 {
+      break
+    }
+
+    dirID, dirIDPath, err = ResolveDir(fs, basePath, segment, parentID, encKey, macKey)
+    if err != nil {
+      return
+    }
+    resolvedPath, err = FromDirID(dirID, encKey, macKey)
+    if err != nil {
+      return
+    }
+    resolvedName, err = filename.Encrypt(segment, parentID, encKey, macKey)
+    if err != nil {
+      return
+    }
+
+    entries = append(entries, dir { dirID: dirID, parentID: parentID, path: resolvedPath, name: resolvedName, dirIDPath: dirIDPath })
+
+    parentID = dirID
+  }
+
+  dirID, dirIDPath, err = ResolveDir(fs, basePath, segments[len(segments) - 1], dirID, encKey, macKey)
+  if err != nil {
+    // might be a file
+    resolvedPath, err = ResolveFile(fs, basePath, segments[len(segments) - 1], parentID, encKey, macKey)
+    resolvedName, err = filename.Encrypt(segments[len(segments) - 1], parentID, encKey, macKey)
+    if err != nil {
+      return
+    }
+    
+    entries = append(entries, file { parentID: parentID, path: resolvedPath, name: resolvedName })
+    return
+  }
+
+  resolvedPath, err = FromDirID(dirID, encKey, macKey)
+  if err != nil {
+    return
+  }
+  resolvedName, err = filename.Encrypt(segments[len(segments) - 1], parentID, encKey, macKey)
+  if err != nil {
+    return
+  }
+
+  entries = append(entries, dir { dirID: dirID, parentID: parentID, path: resolvedPath, name: resolvedName, dirIDPath: dirIDPath })
+
+  return
 }

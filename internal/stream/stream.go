@@ -133,7 +133,7 @@ type Writer struct {
 	mac   hash.Hash
 	nonce []byte
 
-	dst       io.Writer
+	dst       io.WriteCloser
 	unwritten []byte
 	buf       [constants.ChunkEncryptedSize]byte
 
@@ -142,7 +142,7 @@ type Writer struct {
 	chunkNr uint64
 }
 
-func NewWriter(dst io.Writer, contentKey, nonce, macKey []byte) (*Writer, error) {
+func NewWriter(dst io.WriteCloser, contentKey, nonce, macKey []byte) (*Writer, error) {
 	block, err := aes.NewCipher(contentKey)
 	if err != nil {
 		return nil, err
@@ -185,7 +185,7 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 	return total, nil
 }
 
-// Close flushes the last chunk. It does not close the underlying Writer.
+// Close flushes the last chunk. It does close the underlying Writer.
 func (w *Writer) Close() error {
 	if w.err != nil {
 		return w.err
@@ -197,7 +197,7 @@ func (w *Writer) Close() error {
 	}
 
 	w.err = errors.New("stream.Writer is already closed")
-	return nil
+	return w.dst.Close()
 }
 
 func (w *Writer) flushChunk(last bool) error {

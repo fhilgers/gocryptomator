@@ -14,6 +14,10 @@ import (
 	"github.com/fhilgers/gocryptomator/pkg/fs"
 )
 
+type Directory path.Directory
+type Entry path.Entry
+type File path.File
+
 type Vault struct {
 	config.Config
 	masterkey.MasterKey
@@ -70,13 +74,41 @@ func (v Vault) PathFromDirID(dirID string) (string, error) {
 	return path.FromDirID(dirID, v.EncryptKey, v.MacKey)
 }
 
-func (v Vault) ResolveDirPath(dirPath, dirID string) (string, string, error) {
+func (v Vault) ResolveDirPath(dirPath, dirID string) (Directory, error) {
     return path.ResolveDirPath(v.fs, v.basePath, dirPath, dirID, v.EncryptKey, v.MacKey)
 }
 
-func (v Vault) ResolveFilePath(filepath, dirID string) (string, string, error) {
+func (v Vault) ResolveFilePath(filepath, dirID string) (File, error) {
 	return path.ResolveFilePath(v.fs, v.basePath, filepath, dirID, v.EncryptKey, v.MacKey)
 }
+
+func CalculateEncryptedFileSize(size int64) int64 {
+  nFullChunks := (size / constants.ChunkPayloadSize)
+  fullChunksSize := nFullChunks * constants.ChunkEncryptedSize
+
+  rest := size - (nFullChunks * constants.ChunkPayloadSize)
+  restSize := rest + constants.ChunkMacSize + constants.ChunkNonceSize
+
+  return fullChunksSize + restSize + constants.HeaderEncryptedSize
+}
+func CalculateRawFileSize(size int64) int64 {
+  size = size - constants.HeaderEncryptedSize
+
+  nFullChunks := (size / constants.ChunkEncryptedSize)
+  fullChunksSize := nFullChunks * constants.ChunkPayloadSize
+
+  rest := size - (nFullChunks * constants.ChunkEncryptedSize)
+  restSize := rest - constants.ChunkMacSize - constants.ChunkNonceSize
+
+  return fullChunksSize + restSize
+}
+
+
+/*
+func (v Vault) Resolve(pathName, dirID string) (path.Entries, error) {
+  return path.Resolve(v.fs, v.basePath, pathName, dirID, v.EncryptKey, v.MacKey)
+}
+*/
 
 func (v Vault) NewReader(r io.Reader) (io.Reader, error) {
 	h, err := header.Unmarshal(r, v.EncryptKey, v.MacKey)
@@ -87,7 +119,7 @@ func (v Vault) NewReader(r io.Reader) (io.Reader, error) {
 	return stream.NewReader(r, h.ContentKey, h.Nonce, v.MacKey)
 }
 
-func (v Vault) NewWriter(w io.Writer) (io.Writer, error) {
+func (v Vault) NewWriter(w io.WriteCloser) (io.WriteCloser, error) {
 	h, err := header.New()
 	if err != nil {
 		return nil, err
