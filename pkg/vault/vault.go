@@ -104,13 +104,8 @@ func CalculateRawFileSize(size int64) int64 {
 }
 
 
-/*
-func (v Vault) Resolve(pathName, dirID string) (path.Entries, error) {
-  return path.Resolve(v.fs, v.basePath, pathName, dirID, v.EncryptKey, v.MacKey)
-}
-*/
 
-func (v Vault) NewReader(r io.Reader) (io.Reader, error) {
+func (v Vault) NewReader(r io.ReadCloser) (io.ReadCloser, error) {
 	h, err := header.Unmarshal(r, v.EncryptKey, v.MacKey)
 	if err != nil {
 		return nil, err
