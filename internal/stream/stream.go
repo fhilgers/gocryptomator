@@ -25,7 +25,7 @@ type Reader struct {
 	mac   hash.Hash
 	nonce []byte
 
-	src io.Reader
+	src io.ReadCloser
 
 	unread []byte
 	buf    [constants.ChunkEncryptedSize]byte
@@ -35,7 +35,11 @@ type Reader struct {
 	err error
 }
 
-func NewReader(src io.Reader, contentKey, nonce, macKey []byte) (*Reader, error) {
+func (r *Reader) Close() error {
+    return r.src.Close()
+}
+
+func NewReader(src io.ReadCloser, contentKey, nonce, macKey []byte) (*Reader, error) {
 	block, err := aes.NewCipher(contentKey)
 	if err != nil {
 		return nil, err
