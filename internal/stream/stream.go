@@ -25,7 +25,7 @@ type Reader struct {
 	mac   hash.Hash
 	nonce []byte
 
-	src io.ReadCloser
+	src io.Reader
 
 	unread []byte
 	buf    [constants.ChunkEncryptedSize]byte
@@ -35,11 +35,7 @@ type Reader struct {
 	err error
 }
 
-func (r *Reader) Close() error {
-    return r.src.Close()
-}
-
-func NewReader(src io.ReadCloser, contentKey, nonce, macKey []byte) (*Reader, error) {
+func NewReader(src io.Reader, contentKey, nonce, macKey []byte) (*Reader, error) {
 	block, err := aes.NewCipher(contentKey)
 	if err != nil {
 		return nil, err
@@ -100,7 +96,9 @@ func (r *Reader) readChunk() (last bool, err error) {
 
 	switch {
 	case err == io.EOF:
-		return false, io.ErrUnexpectedEOF
+    // TODO
+		//return false, io.ErrUnexpectedEOF
+    return true, nil
 	case err == io.ErrUnexpectedEOF:
 		last = true
 		in = in[:n]
@@ -137,7 +135,7 @@ type Writer struct {
 	mac   hash.Hash
 	nonce []byte
 
-	dst       io.WriteCloser
+	dst       io.Writer
 	unwritten []byte
 	buf       [constants.ChunkEncryptedSize]byte
 
@@ -146,7 +144,7 @@ type Writer struct {
 	chunkNr uint64
 }
 
-func NewWriter(dst io.WriteCloser, contentKey, nonce, macKey []byte) (*Writer, error) {
+func NewWriter(dst io.Writer, contentKey, nonce, macKey []byte) (*Writer, error) {
 	block, err := aes.NewCipher(contentKey)
 	if err != nil {
 		return nil, err
@@ -189,7 +187,7 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 	return total, nil
 }
 
-// Close flushes the last chunk. It does close the underlying Writer.
+// Close flushes the last chunk. It doesnt close the underlying Writer.
 func (w *Writer) Close() error {
 	if w.err != nil {
 		return w.err
@@ -201,13 +199,17 @@ func (w *Writer) Close() error {
 	}
 
 	w.err = errors.New("stream.Writer is already closed")
-	return w.dst.Close()
+	return nil
 }
 
 func (w *Writer) flushChunk(last bool) error {
 	if !last && len(w.unwritten) != constants.ChunkPayloadSize {
 		panic("stream: internal error: flush called with partial chunk")
 	}
+
+  if len(w.unwritten) == 0 {
+    return nil
+  }
 
 	chunkNonce := make([]byte, constants.ChunkNonceSize)
 	_, err := rand.Read(chunkNonce)
