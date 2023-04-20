@@ -3,15 +3,17 @@ package path
 import (
 	"crypto/sha1"
 	"encoding/base32"
-	"io"
 	"path/filepath"
+  /*
+	"io"
 	"strings"
 
 	"github.com/fhilgers/gocryptomator/internal/constants"
 	"github.com/fhilgers/gocryptomator/internal/filename"
-	"github.com/fhilgers/gocryptomator/pkg/fs"
-	"github.com/jacobsa/crypto/siv"
+	//"github.com/fhilgers/gocryptomator/pkg/fs"
 	"github.com/spf13/afero"
+  */
+	"github.com/jacobsa/crypto/siv"
 )
 
 
@@ -27,6 +29,7 @@ func FromDirID(dirID string, encKey, macKey []byte) (string, error) {
     return filepath.Join(encIDString[:2], encIDString[2:]), nil
 }
 
+/*
 func ResolveDir(fs fs.Fs, basePath, dir, parentID string, encKey, macKey []byte) (dirID string, dirIDPath string, err error) {
     
     parentPath, err := FromDirID(parentID, encKey, macKey)
@@ -55,6 +58,7 @@ func ResolveDir(fs fs.Fs, basePath, dir, parentID string, encKey, macKey []byte)
 
     return string(dirIDBytes), filepath.Join(basePath, parentPath, encDirName), nil
 }
+*/
 
 /*
 func ResolveSymlink(fs iofs.FS, basePath, symlink, parentID string, encKey, macKey []byte) (symlinkTarget string, err error) {
@@ -92,6 +96,7 @@ func ResolveSymlink(fs iofs.FS, basePath, symlink, parentID string, encKey, macK
 }
 */
 
+/*
 func ResolveFile(fs fs.Fs, basePath, file, parentID string, encKey, macKey []byte) (path string, err error) {
     parentPath, err := FromDirID(parentID, encKey, macKey)
     if err != nil {
@@ -285,3 +290,4 @@ func Resolve(fs fs.Fs, basePath, path, parentID string, encKey, macKey []byte) (
 
   return
 }
+*/

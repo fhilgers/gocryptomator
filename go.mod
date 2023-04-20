@@ -22,6 +22,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/google/uuid v1.3.0
 	github.com/jacobsa/crypto v0.0.0-20190317225127-9f44e2d11115
+	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/spf13/afero v1.9.2
 	github.com/stretchr/testify v1.8.1
 	pgregory.net/rapid v0.5.3
