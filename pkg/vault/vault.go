@@ -271,8 +271,9 @@ func (v *Vault) Rmdir(name string) (err error) {
   return
 }
 
-func (v *Vault) GetDirPath(name string) (dirPath string, err error) {
-  dirID, err := v.GetDirID(name)
+
+func (v *Vault) GetDirPath(name string) (dirPath string, dirID string, err error) {
+  dirID, err = v.GetDirID(name)
   if err != nil {
     return
   }
@@ -282,9 +283,8 @@ func (v *Vault) GetDirPath(name string) (dirPath string, err error) {
     return 
   }
 
-  return gopath.Join(DataDir, dir), nil
+  return gopath.Join(DataDir, dir), dirID,  nil
 }
-
 
 func (v *Vault) GetDirID(name string) (dirID string, err error) {
   segments := splitPath(name)
@@ -304,7 +304,7 @@ func (v *Vault) GetDirID(name string) (dirID string, err error) {
     }
 
     if entry.DirID == string(b) {
-      //return entry.DirID, nil
+      return entry.DirID, nil
     } else {
       v.cache.Remove(cleanPath(name))
     }
@@ -325,16 +325,16 @@ func (v *Vault) GetDirID(name string) (dirID string, err error) {
   return
 }
 
-func (v *Vault) GetFilePath(name string) (filePath string, err error) {
+func (v *Vault) GetFilePath(name string) (filePath string, dirID string, err error) {
   cleanName := cleanPath(name)
 
   dir, file := gopath.Split(cleanName)
 
   if file == "" {
-    return "", fmt.Errorf("not a valid filepath: %s", name)
+    return "", "", fmt.Errorf("not a valid filepath: %s", name)
   }
 
-  dirID, err := v.GetDirID(dir)
+  dirID, err = v.GetDirID(dir)
   if err != nil {
     return
   }
@@ -350,14 +350,26 @@ func (v *Vault) GetFilePath(name string) (filePath string, err error) {
     return
   }
 
-  return gopath.Join(DataDir, parentPath, encName), nil
+  return gopath.Join(DataDir, parentPath, encName), dirID, nil
 }
 
 
 // TODO change API
 
+func (v *Vault) PathFromDirID(dirId string) (string, error) {
+  path, err := path.FromDirID(dirId, v.EncryptKey, v.MacKey)
+  if err != nil {
+    return "", err
+  }
+
+  return gopath.Join(DataDir, path), nil
+}
+
 func (v *Vault) DecryptFileName(name string, dirID string) (string, error) {
   return filename.Decrypt(name, dirID, v.EncryptKey, v.MacKey)
+}
+func (v *Vault) EncryptFileName(name string, dirID string) (string, error) {
+  return filename.Encrypt(name, dirID, v.EncryptKey, v.MacKey)
 }
 
 func CalculateEncryptedFileSize(size int64) int64 {
