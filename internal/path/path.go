@@ -4,34 +4,33 @@ import (
 	"crypto/sha1"
 	"encoding/base32"
 	"path/filepath"
-  /*
-	"io"
-	"strings"
+	/*
+		"io"
+		"strings"
 
-	"github.com/fhilgers/gocryptomator/internal/constants"
-	"github.com/fhilgers/gocryptomator/internal/filename"
-	//"github.com/fhilgers/gocryptomator/pkg/fs"
-	"github.com/spf13/afero"
-  */
+		"github.com/fhilgers/gocryptomator/internal/constants"
+		"github.com/fhilgers/gocryptomator/internal/filename"
+		//"github.com/fhilgers/gocryptomator/pkg/fs"
+		"github.com/spf13/afero"
+	*/
 	"github.com/jacobsa/crypto/siv"
 )
 
-
 func FromDirID(dirID string, encKey, macKey []byte) (string, error) {
-    encID, err := siv.Encrypt(nil, append(macKey, encKey...), []byte(dirID), nil)
-    if err != nil {
-        return "", err
-    }
+	encID, err := siv.Encrypt(nil, append(macKey, encKey...), []byte(dirID), nil)
+	if err != nil {
+		return "", err
+	}
 
-    encIDBytes := sha1.Sum(encID)
-    encIDString := base32.StdEncoding.EncodeToString(encIDBytes[:])
+	encIDBytes := sha1.Sum(encID)
+	encIDString := base32.StdEncoding.EncodeToString(encIDBytes[:])
 
-    return filepath.Join(encIDString[:2], encIDString[2:]), nil
+	return filepath.Join(encIDString[:2], encIDString[2:]), nil
 }
 
 /*
 func ResolveDir(fs fs.Fs, basePath, dir, parentID string, encKey, macKey []byte) (dirID string, dirIDPath string, err error) {
-    
+
     parentPath, err := FromDirID(parentID, encKey, macKey)
     if err != nil {
         return
@@ -272,7 +271,7 @@ func Resolve(fs fs.Fs, basePath, path, parentID string, encKey, macKey []byte) (
     if err != nil {
       return
     }
-    
+
     entries = append(entries, file { parentID: parentID, path: resolvedPath, name: resolvedName })
     return
   }

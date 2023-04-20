@@ -96,9 +96,9 @@ func (r *Reader) readChunk() (last bool, err error) {
 
 	switch {
 	case err == io.EOF:
-    // TODO
-		//return false, io.ErrUnexpectedEOF
-    return true, nil
+		// TODO
+		// return false, io.ErrUnexpectedEOF
+		return true, nil
 	case err == io.ErrUnexpectedEOF:
 		last = true
 		in = in[:n]
@@ -207,9 +207,9 @@ func (w *Writer) flushChunk(last bool) error {
 		panic("stream: internal error: flush called with partial chunk")
 	}
 
-  if len(w.unwritten) == 0 {
-    return nil
-  }
+	if len(w.unwritten) == 0 {
+		return nil
+	}
 
 	chunkNonce := make([]byte, constants.ChunkNonceSize)
 	_, err := rand.Read(chunkNonce)

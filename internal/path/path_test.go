@@ -20,55 +20,52 @@ func TestDummy(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		encKey := testutils.FixedSizeByteArray(constants.MasterEncryptKeySize).Draw(t, "encKey")
 		macKey := testutils.FixedSizeByteArray(constants.MasterMacKeySize).Draw(t, "macKey")
-        
-        memFs := afero.NewMemMapFs()
 
-        rootDir, err := path.FromDirID("", encKey, macKey)
-        assert.NoError(t, err)
+		memFs := afero.NewMemMapFs()
 
-        err = memFs.MkdirAll("" + rootDir, 0755)
-        assert.NoError(t, err)
+		rootDir, err := path.FromDirID("", encKey, macKey)
+		assert.NoError(t, err)
 
-        dirID := uuid.NewString()
+		err = memFs.MkdirAll(""+rootDir, 0o755)
+		assert.NoError(t, err)
+
+		dirID := uuid.NewString()
+
+		encName, err := filename.Encrypt("testdir", "", encKey, macKey)
+		assert.NoError(t, err)
+
+		err = memFs.MkdirAll(filepath.Join("", rootDir, encName), 0o755)
+		assert.NoError(t, err)
+
+		p, err := path.FromDirID(dirID, encKey, macKey)
+		assert.NoError(t, err)
+
+		err = afero.WriteFile(memFs, filepath.Join("", rootDir, encName, "dir.c9r"), []byte(dirID), 0o644)
+		assert.NoError(t, err)
+
+		err = memFs.Mkdir(filepath.Join("", p), 0o755)
+		assert.NoError(t, err)
+
+		afero.Walk(memFs, "", func(path string, info fs.FileInfo, err error) error {
+			fmt.Println(path)
+			return nil
+		})
+
+		/*
+		   rootDir, err = path.Resolve(afero.NewIOFS(memFs), "", "", "", encKey, macKey)
+		   assert.NoError(t, err)
+		   fmt.Println(rootDir)
+
+		   rootDir, err = path.Resolve(afero.NewIOFS(memFs), "", "testdir", "", encKey, macKey)
+		   assert.NoError(t, err)
 
 
-        encName, err := filename.Encrypt("testdir", "", encKey, macKey)
-        assert.NoError(t, err)
-
-        err = memFs.MkdirAll(filepath.Join("", rootDir, encName), 0755)
-        assert.NoError(t, err)
-
-        p, err := path.FromDirID(dirID, encKey, macKey)
-        assert.NoError(t, err)
-
-        err = afero.WriteFile(memFs, filepath.Join("", rootDir, encName, "dir.c9r"), []byte(dirID), 0644)
-        assert.NoError(t, err)
-
-        err = memFs.Mkdir(filepath.Join("", p), 0755)
-        assert.NoError(t, err)
-
-        afero.Walk(memFs, "", func(path string, info fs.FileInfo, err error) error {
-            fmt.Println(path)
-            return nil
-        })
-
-        /*
-        rootDir, err = path.Resolve(afero.NewIOFS(memFs), "", "", "", encKey, macKey)
-        assert.NoError(t, err)
-        fmt.Println(rootDir)
-
-        rootDir, err = path.Resolve(afero.NewIOFS(memFs), "", "testdir", "", encKey, macKey)
-        assert.NoError(t, err)
-
-
-        fmt.Println(rootDir)
-        */
-
+		   fmt.Println(rootDir)
+		*/
 	})
 }
 
 func TestVault(tt *testing.T) {
-    rapid.Check(tt, func(t *rapid.T) {
-
-    })
+	rapid.Check(tt, func(t *rapid.T) {
+	})
 }
