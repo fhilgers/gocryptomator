@@ -66,9 +66,9 @@ func New() (header FileHeader, err error) {
 func Unmarshal(r io.Reader, encKey, macKey []byte) (header FileHeader, err error) {
 	var encHeader encryptedFileHeader
 
-  if _, err = io.ReadFull(r, encHeader[:]); err != nil {
-    return
-  }
+	if _, err = io.ReadFull(r, encHeader[:]); err != nil {
+		return
+	}
 
 	header.Nonce = encHeader.Nonce()
 
