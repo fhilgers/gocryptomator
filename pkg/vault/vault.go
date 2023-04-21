@@ -5,6 +5,7 @@ import (
 	"io"
 	gopath "path"
 	"strings"
+	"sync"
 
 	"github.com/fhilgers/gocryptomator/internal/config"
 	"github.com/fhilgers/gocryptomator/internal/constants"
@@ -53,13 +54,15 @@ type Vault struct {
 
 	fs Fs
 
-	cache cmap.ConcurrentMap[string, cacheEntry]
+	mkDirLock cmap.ConcurrentMap[string, *sync.Mutex]
+	cache     cmap.ConcurrentMap[string, cacheEntry]
 }
 
 func Open(fs Fs, passphrase string) (vault *Vault, err error) {
 	vault = &Vault{
-		fs:    fs,
-		cache: cmap.New[cacheEntry](),
+		fs:        fs,
+		cache:     cmap.New[cacheEntry](),
+		mkDirLock: cmap.New[*sync.Mutex](),
 	}
 
 	configReader, err := fs.Open(constants.ConfigFileName)
@@ -91,8 +94,9 @@ func Open(fs Fs, passphrase string) (vault *Vault, err error) {
 
 func Create(fs Fs, passphrase string) (vault *Vault, err error) {
 	vault = &Vault{
-		fs:    fs,
-		cache: cmap.New[cacheEntry](),
+		fs:        fs,
+		cache:     cmap.New[cacheEntry](),
+		mkDirLock: cmap.New[*sync.Mutex](),
 	}
 
 	if vault.MasterKey, err = masterkey.New(); err != nil {
@@ -142,6 +146,14 @@ func (v *Vault) MkRootDir() (err error) {
 func (v *Vault) Mkdir(name string) (err error) {
 	cleanName := cleanPath(name)
 
+	mu, ok := v.mkDirLock.Get(cleanName)
+	if !ok {
+		mu = new(sync.Mutex)
+		v.mkDirLock.Set(cleanName, mu)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+
 	if _, err = v.GetDirID(cleanName); err == nil {
 		return nil
 	}
@@ -175,15 +187,10 @@ func (v *Vault) Mkdir(name string) (err error) {
 		return
 	}
 
-	dirExists := false
-
-	dirID, err := v.writeDirIDToPath(gopath.Join(DataDir, parentPath, encDirName, constants.DirFile))
+	dirID := uuid.NewString()
+	err = v.writeDirIDToPath(gopath.Join(DataDir, parentPath, encDirName, constants.DirFile), dirID)
 	if err != nil {
-		dirID, err = v.getDirIDFromPath(gopath.Join(DataDir, parentPath, encDirName, constants.DirFile))
-		if err != nil {
-			return
-		}
-		dirExists = true
+		return
 	}
 
 	v.cache.Set(cleanName, cacheEntry{
@@ -201,9 +208,7 @@ func (v *Vault) Mkdir(name string) (err error) {
 	}
 
 	if err = v.writeDirIDToPathEncrypted(gopath.Join(DataDir, dirPath, "dirid.c9r"), dirID); err != nil {
-		if !dirExists {
-			return err
-		}
+		return err
 	}
 
 	return nil
@@ -283,11 +288,11 @@ func (v *Vault) GetDirPath(name string) (dirPath, dirID string, err error) {
 }
 
 func (v *Vault) InvalidateCache(name string) {
-  v.cache.Remove(cleanPath(name))
+	v.cache.Remove(cleanPath(name))
 }
 
 func (v *Vault) FullyInvalidate() {
-  v.cache.Clear()
+	v.cache.Clear()
 }
 
 func (v *Vault) GetDirID(name string) (dirID string, err error) {
@@ -473,7 +478,7 @@ func (v *Vault) getDirIDFromPath(path string) (dirID string, err error) {
 	return string(dirIDBytes), nil
 }
 
-func (v *Vault) writeDirIDToPath(path string) (dirID string, err error) {
+func (v *Vault) writeDirIDToPath(path, dirID string) (err error) {
 	dirIDWriter, err := v.fs.Create(path)
 	if err != nil {
 		return
@@ -482,7 +487,6 @@ func (v *Vault) writeDirIDToPath(path string) (dirID string, err error) {
 		err = dirIDWriter.Close()
 	}()
 
-	dirID = uuid.NewString()
 	if _, err = dirIDWriter.Write([]byte(dirID)); err != nil {
 		return
 	}
