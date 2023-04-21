@@ -228,7 +228,7 @@ func (v *Vault) Rmdir(name string) (err error) {
 		return
 	}
 
-	v.cache.Remove(name)
+	v.cache.Remove(cleanName)
 
 	parentPath, err := path.FromDirID(parentID, v.EncryptKey, v.MacKey)
 	if err != nil {
@@ -282,28 +282,21 @@ func (v *Vault) GetDirPath(name string) (dirPath, dirID string, err error) {
 	return gopath.Join(DataDir, dir), dirID, nil
 }
 
+func (v *Vault) InvalidateCache(name string) {
+  v.cache.Remove(cleanPath(name))
+}
+
+func (v *Vault) FullyInvalidate() {
+  v.cache.Clear()
+}
+
 func (v *Vault) GetDirID(name string) (dirID string, err error) {
 	segments := splitPath(name)
 
 	dirID = RootDirID
 
 	if entry, ok := v.cache.Get(cleanPath(name)); ok {
-		reader, err := v.fs.Open(entry.DirIDFile)
-		if err != nil {
-			return "", err
-		}
-		defer reader.Close()
-
-		b, err := io.ReadAll(reader)
-		if err != nil {
-			return "", err
-		}
-
-		if entry.DirID == string(b) {
-			return entry.DirID, nil
-		} else {
-			v.cache.Remove(cleanPath(name))
-		}
+		return entry.DirID, nil
 	}
 
 	var dirIDFile string
