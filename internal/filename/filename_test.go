@@ -1,9 +1,10 @@
-package filename
+package filename_test
 
 import (
 	"testing"
 
 	"github.com/fhilgers/gocryptomator/internal/constants"
+	"github.com/fhilgers/gocryptomator/internal/filename"
 	"github.com/fhilgers/gocryptomator/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
@@ -17,10 +18,10 @@ func TestEncryptDecrypt(t *testing.T) {
 		encKey := testutils.FixedSizeByteArray(constants.MasterEncryptKeySize).Draw(t, "encKey")
 		macKey := testutils.FixedSizeByteArray(constants.MasterMacKeySize).Draw(t, "macKey")
 
-		encName, err := Encrypt(name, dirID, encKey, macKey)
+		encName, err := filename.Encrypt(name, dirID, encKey, macKey)
 		assert.NoError(t, err, "encryption error")
 
-		decName, err := Decrypt(encName, dirID, encKey, macKey)
+		decName, err := filename.Decrypt(encName, dirID, encKey, macKey)
 		assert.NoError(t, err, "decryption error")
 
 		assert.Equal(t, name, decName)
