@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	gopath "path"
@@ -29,8 +30,8 @@ type Fs interface {
 	// Open file for reading
 	Open(name string) (io.ReadCloser, error)
 
-	// Create new file, fail if exists
-	Create(name string) (io.WriteCloser, error)
+	// Create a new file and write the content to it, fail if already exists
+	WriteString(name, content string) error
 
 	// Remove dir, error if not exists, error if not empty
 	RemoveDir(name string) error
@@ -101,27 +102,25 @@ func Create(fs Fs, passphrase string) (vault *Vault, err error) {
 		return
 	}
 
-	masterKeyWriter, err := fs.Create(constants.ConfigMasterkeyFileName)
-	if err != nil {
-		return
-	}
-	defer masterKeyWriter.Close()
-
+	masterKeyWriter := new(bytes.Buffer)
 	if err = vault.MasterKey.Marshal(masterKeyWriter, passphrase); err != nil {
 		return
 	}
 
-	configWriter, err := fs.Create(gopath.Join(constants.ConfigFileName))
-	if err != nil {
+	if err = vault.fs.WriteString(constants.ConfigMasterkeyFileName, masterKeyWriter.String()); err != nil {
 		return
 	}
-	defer configWriter.Close()
 
 	if vault.Config, err = config.New(vault.EncryptKey, vault.MacKey); err != nil {
 		return
 	}
 
+	configWriter := new(bytes.Buffer)
 	if err = vault.Config.Marshal(configWriter, vault.EncryptKey, vault.MacKey); err != nil {
+		return
+	}
+
+	if err = vault.fs.WriteString(constants.ConfigFileName, configWriter.String()); err != nil {
 		return
 	}
 
@@ -482,39 +481,22 @@ func (v *Vault) getDirIDFromPath(path string) (dirID string, err error) {
 }
 
 func (v *Vault) writeDirIDToPath(path, dirID string) (err error) {
-	dirIDWriter, err := v.fs.Create(path)
-	if err != nil {
-		return
-	}
-	defer func() {
-		err = dirIDWriter.Close()
-	}()
-
-	if _, err = dirIDWriter.Write([]byte(dirID)); err != nil {
-		return
-	}
-
-	return
+	return v.fs.WriteString(path, dirID)
 }
 
 func (v *Vault) writeDirIDToPathEncrypted(path, dirID string) (err error) {
-	dirIDWriter, err := v.fs.Create(path)
+	encReader, err := v.NewEncryptReader(strings.NewReader(dirID))
 	if err != nil {
-		return
+		return err
 	}
-	defer dirIDWriter.Close()
+	defer encReader.Close()
 
-	encWriter, err := v.NewEncryptWriter(dirIDWriter)
+	encryptedDirID, err := io.ReadAll(encReader)
 	if err != nil {
-		return
-	}
-	defer encWriter.Close()
-
-	if _, err = encWriter.Write([]byte(dirID)); err != nil {
-		return
+		return err
 	}
 
-	return
+	return v.fs.WriteString(path, string(encryptedDirID))
 }
 
 func cleanPath(name string) string {
