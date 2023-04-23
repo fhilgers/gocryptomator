@@ -175,7 +175,7 @@ func (v *Vault) Mkdir(name string) (err error) {
 		return
 	}
 
-	encDirName, err := filename.Encrypt(dir, parentID, v.EncryptKey, v.MacKey)
+	encDirName, err := v.EncryptFileName(dir, parentID)
 	if err != nil {
 		return
 	}
@@ -241,7 +241,7 @@ func (v *Vault) Rmdir(name string) (err error) {
 		return
 	}
 
-	encDirName, err := filename.Encrypt(dir, parentID, v.EncryptKey, v.MacKey)
+	encDirName, err := v.EncryptFileName(dir, parentID)
 	if err != nil {
 		return
 	}
@@ -340,7 +340,7 @@ func (v *Vault) GetFilePath(name string) (filePath, dirID string, err error) {
 		return
 	}
 
-	encName, err := filename.Encrypt(file, dirID, v.EncryptKey, v.MacKey)
+	encName, err := v.EncryptFileName(file, dirID)
 	if err != nil {
 		return
 	}
@@ -452,7 +452,7 @@ func (v *Vault) getDirSegmentID(segment, parentID string) (dirID, dirIDFile stri
 		return
 	}
 
-	encSegment, err := filename.Encrypt(segment, parentID, v.EncryptKey, v.MacKey)
+	encSegment, err := v.EncryptFileName(segment, parentID)
 	if err != nil {
 		return
 	}
