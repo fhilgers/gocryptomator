@@ -43,7 +43,7 @@ type Fs interface {
 }
 
 type cacheEntry struct {
-	DirID     string
+	DirID string
 }
 
 type Vault struct {
@@ -192,7 +192,7 @@ func (v *Vault) Mkdir(name string) (err error) {
 	}
 
 	v.cache.Set(cleanName, cacheEntry{
-		DirID:     dirID,
+		DirID: dirID,
 	})
 
 	dirPath, err := path.FromDirID(dirID, v.EncryptKey, v.MacKey)
@@ -301,21 +301,21 @@ func (v *Vault) GetDirID(name string) (dirID string, err error) {
 		return entry.DirID, nil
 	}
 
-	//var dirIDFile string
+	// var dirIDFile string
 	for i, segment := range segments {
 
-    entry, ok := v.cache.Get(strings.Join(segments[:i+1], PathSeparator))
-    if ok {
-      dirID = entry.DirID
-      continue
-    }
+		entry, ok := v.cache.Get(strings.Join(segments[:i+1], PathSeparator))
+		if ok {
+			dirID = entry.DirID
+			continue
+		}
 
 		if dirID, _, err = v.getDirSegmentID(segment, dirID); err != nil {
 			return
 		}
 
 		v.cache.Set(strings.Join(segments[:i+1], PathSeparator), cacheEntry{
-			DirID:     dirID,
+			DirID: dirID,
 		})
 	}
 

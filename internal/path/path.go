@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/base32"
 	"path/filepath"
+
 	"github.com/jacobsa/crypto/siv"
 )
 
