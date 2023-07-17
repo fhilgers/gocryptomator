@@ -84,6 +84,9 @@ func UnmarshalUnverified(r io.Reader) (c Config, err error) {
 	}
 
 	token, _, err := jwt.NewParser().ParseUnverified(string(tokenBytes), &c)
+	if err != nil {
+		return 
+	}
 
 	if err = token.Claims.Valid(); err != nil {
 		return

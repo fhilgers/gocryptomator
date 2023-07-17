@@ -2,15 +2,11 @@ package masterkey_test
 
 import (
 	"bytes"
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/fhilgers/gocryptomator/internal/constants"
 	"github.com/fhilgers/gocryptomator/internal/masterkey"
+	"github.com/fhilgers/gocryptomator/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
 )
@@ -52,38 +48,14 @@ type encKey struct {
 }
 
 func TestUnmarshalReference(t *testing.T) {
-	paths, err := filepath.Glob(filepath.Join("testdata", "*.input"))
-	assert.NoError(t, err)
+	testutils.WithTestdata(t, func(t *testing.T, input encKey, golden masterkey.MasterKey) {
+		buf := bytes.NewBuffer(input.EncryptedMasterKey)
 
-	for _, path := range paths {
-		filename := filepath.Base(path)
-		testname := strings.TrimSuffix(filename, filepath.Ext(filename))
-
-		input, err := os.ReadFile(path)
+		h, err := masterkey.Unmarshal(buf, input.Passphrase)
 		assert.NoError(t, err)
 
-		golden, err := os.ReadFile(filepath.Join("testdata", testname+".golden"))
-		assert.NoError(t, err)
+		assert.Empty(t, buf.Bytes())
 
-		var encKeys map[string]encKey
-		err = json.Unmarshal(input, &encKeys)
-		assert.NoError(t, err)
-
-		var keys map[string]masterkey.MasterKey
-		err = json.Unmarshal(golden, &keys)
-		assert.NoError(t, err)
-
-		for name, encKey := range encKeys {
-			t.Run(fmt.Sprintf("%s:%s", testname, name), func(t *testing.T) {
-				buf := bytes.NewBuffer(encKey.EncryptedMasterKey)
-
-				h, err := masterkey.Unmarshal(buf, encKey.Passphrase)
-				assert.NoError(t, err)
-
-				assert.Empty(t, buf.Bytes())
-
-				assert.Equal(t, keys[name], h)
-			})
-		}
-	}
+		assert.Equal(t, golden, h)
+	})
 }
